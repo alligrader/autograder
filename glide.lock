@@ -1,0 +1,10 @@
+hash: 18d50402df613271c0a8c802a2aa9d35132b93c0760bca3a922aa3c6fd1e50f0
+updated: 2017-01-18T19:46:08.658770533-05:00
+imports:
+- name: github.com/google/go-github
+  version: 173908142398084e14d7f14c39924f0004d43679
+- name: github.com/gorilla/mux
+  version: 392c28fe23e1c45ddba891b0320b3b5df220beea
+- name: github.com/Sirupsen/logrus
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
+testImports: []
