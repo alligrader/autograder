@@ -20,5 +20,5 @@ task go_build: [ ] do
 end
 
 task deploy: [] do
-    sh "kubectl run autograder --image=gcr.io/alligrader-15/autograder:v0.0.2 --port=80"
+    sh "kubectl run autograder --image=gcr.io/alligrader-15/autograder:v0.0.3 --port=80"
 end
