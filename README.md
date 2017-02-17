@@ -6,3 +6,7 @@ This service does not have a UI. It just listens for Git hooks to come in and la
 
 #Summary
 Listens for Git hooks and talks to kubernetes
+
+# TODO
+
+I need to make the Rakefile pull the version from the environment variables, then break the tasks into smaller chunks.
