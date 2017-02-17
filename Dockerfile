@@ -1,6 +1,4 @@
-FROM scratch
+FROM golang:1.8-onbuild
 
-ADD autograder autograder
 ENV PORT 80
 EXPOSE 80
-ENTRYPOINT ["/autograder"]
