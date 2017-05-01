@@ -2,7 +2,7 @@
     "memo": "171c781bd5ffb60bdfab6f68d0c855e72cc0d79feba40323eab0602ebc48fba1",
     "projects": [
         {
-            "name": "github.com/Sirupsen/logrus",
+            "name": "github.com/sirupsen/logrus",
             "version": "v0.11.4",
             "revision": "0208149b40d863d2c1a2f8fe5753096a9cf2cc8b",
             "packages": [

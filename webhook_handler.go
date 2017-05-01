@@ -1,10 +1,15 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
+	"os"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/RobbieMcKinstry/pipeline"
+	"github.com/alligrader/jobs"
 	"github.com/google/go-github/github"
+	log "github.com/sirupsen/logrus"
 )
 
 const secretKey = "hello_alligrader"
@@ -12,9 +17,12 @@ const secretKey = "hello_alligrader"
 func GitHubHandler(w http.ResponseWriter, r *http.Request) {
 	payload, err := github.ValidatePayload(r, []byte(secretKey))
 	if err != nil {
-		log.Warn(err)
+		log.Fatal(err)
 	}
 
+	if len(payload) == 0 {
+		log.Fatal("We have an empty payload problem!")
+	}
 	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
 		log.Warn(err)
@@ -22,18 +30,77 @@ func GitHubHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch event := event.(type) {
 	case *github.PushEvent:
+		err = json.Unmarshal(payload, event)
+		if err != nil {
+			log.Info(string(payload))
+			log.Fatal(err)
+		}
 		processPushEvent(w, event)
 	case *github.PullRequestEvent:
 		processPullRequestEvent(w, event)
 	}
 }
 
+// processPushEvent needs to connect to kubernetes,
+// set the metadata to have the right environment variables
+// then launch those containers
 func processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
 	const s = "Received a push event!"
 	log.Info(s)
-	w.Write([]byte(s))
+	defer w.Write([]byte(s))
+
+	const (
+		pipelineName = "checkstyleLinter"
+		jarLoc       = "../jobs/lib/checkstyle-7.6.1-all.jar"
+		srcDir       = ""
+		checks       = "../jobs/.test/checkstyle.xml"
+	)
+
+	if e.Repo == nil {
+		log.Info(e.String())
+		log.Fatal("e.Repo is nil.")
+	}
+
+	if e.Repo.Owner == nil {
+		log.Fatal("e.Repo.Owner is nil.")
+	}
+
+	if e.Repo.Owner.GetName() == "" {
+		log.Fatal("e.Repo.Owner.GetName() is empty")
+	}
+
+	var (
+		repo         = e.Repo.GetName()
+		owner        = e.Repo.Owner.GetName()
+		ref          = e.GetHead()
+		outputLoc, _ = ioutil.TempFile("", "findbugs.out")
+		fetchStep    = jobs.NewGithubStep(owner, repo, ref)
+		checkStep    = jobs.NewCheckstyleStep(jarLoc, outputLoc.Name(), srcDir, checks, true)
+		commentStep  = jobs.NewCommentStep(owner, repo, ref)
+		pipe         = pipeline.New(pipelineName, 1000)
+		stage        = pipeline.NewStage(pipelineName, false, false)
+	)
+	defer os.Remove(outputLoc.Name())
+
+	stage.AddStep(fetchStep)
+	stage.AddStep(checkStep)
+	stage.AddStep(commentStep)
+	pipe.AddStage(stage)
+
+	res := pipe.Run()
+	if res == nil {
+		log.Fatal("No response!")
+	}
+
+	if res.Error != nil {
+		log.Info("Returning an error in the stage result.")
+		log.Fatal(res.Error)
+	}
 }
 
+// processPushEvent needs to connect to kubernetes,
+// set the metadata to have the right environment variables
+// then launch those containers
 func processPullRequestEvent(w http.ResponseWriter, e *github.PullRequestEvent) {
 	const s = "Receieved a pull request event!"
 	log.Info(s)
