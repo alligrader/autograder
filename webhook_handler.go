@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/alligrader/jobs"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 )
 
 const secretKey = "hello_alligrader"
@@ -69,14 +71,22 @@ func processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
 		log.Fatal("e.Repo.Owner.GetName() is empty")
 	}
 
+	if e.GetAfter() == "" {
+		log.Warn("e.GetAfter() is empty!")
+	} else {
+		log.Infof("e.GetAfter() == %v", e.GetAfter())
+	}
+
 	var (
+		httpClient   = getClient()
+		client       = github.NewClient(httpClient)
 		repo         = e.Repo.GetName()
 		owner        = e.Repo.Owner.GetName()
-		ref          = e.GetHead()
+		ref          = e.GetAfter()
 		outputLoc, _ = ioutil.TempFile("", "findbugs.out")
 		fetchStep    = jobs.NewGithubStep(owner, repo, ref)
-		checkStep    = jobs.NewCheckstyleStep(jarLoc, outputLoc.Name(), srcDir, checks, true)
-		commentStep  = jobs.NewCommentStep(owner, repo, ref)
+		checkStep    = jobs.NewCheckstyleStep(jarLoc, outputLoc.Name(), srcDir, checks, "", false)
+		commentStep  = jobs.NewCommentStep(owner, repo, ref, client)
 		pipe         = pipeline.New(pipelineName, 1000)
 		stage        = pipeline.NewStage(pipelineName, false, false)
 	)
@@ -105,4 +115,14 @@ func processPullRequestEvent(w http.ResponseWriter, e *github.PullRequestEvent) 
 	const s = "Receieved a pull request event!"
 	log.Info(s)
 	w.Write([]byte(s))
+}
+
+// TODO really need to inject environment variables
+func getClient() *http.Client {
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: "8f23d9e3b9cc22d3be326928ee73c4880996de65"},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	return tc
 }
