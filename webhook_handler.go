@@ -11,6 +11,7 @@ import (
 	"github.com/alligrader/jobs"
 	"github.com/google/go-github/github"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
@@ -21,15 +22,32 @@ const (
 	Test
 	Staging
 	Development
+
+	ProductionEnv  = "production"
+	TestEnv        = "test"
+	StagingEnv     = "staging"
+	DevelopmentEnv = "development"
+
+	configFileName = "configuration"
+
+	environmentKey = "ENV"
 )
 
-var secretKey string = "hello_alligrader"
-var githubToken string = "8f23d9e3b9cc22d3be326928ee73c4880996de65"
-var logger *logrus.Logger
-var env environment
-var port = ":80"
+var (
+	conf   = viper.New()
+	env    environment
+	logger *logrus.Logger
+)
 
 func init() {
+
+	conf.SetConfigName(configFileName)
+	conf.AddConfigPath(".")
+	conf.ReadInConfig()
+	conf.AutomaticEnv()
+	conf.WatchConfig()
+	setEnvironment(conf)
+
 	logger = &logrus.Logger{
 		Out:       os.Stdout,
 		Formatter: &logrus.TextFormatter{ForceColors: true},
@@ -45,10 +63,23 @@ func init() {
 	}
 }
 
+func setEnvironment(config *viper.Viper) {
+
+	enumMapper := map[string]environment{
+		ProductionEnv:  Production,
+		TestEnv:        Test,
+		DevelopmentEnv: Development,
+		StagingEnv:     Staging,
+	}
+
+	env = enumMapper[config.GetString(environmentKey)]
+}
+
 type githubHandler struct {
 	log         *logrus.Logger
 	secretKey   string
 	accessToken string
+	conf        *viper.Viper
 }
 
 func (g *githubHandler) getClient() *http.Client {
