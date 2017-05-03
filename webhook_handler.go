@@ -10,45 +10,102 @@ import (
 	"github.com/RobbieMcKinstry/pipeline"
 	"github.com/alligrader/jobs"
 	"github.com/google/go-github/github"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
-const secretKey = "hello_alligrader"
+type environment int
 
-func GitHubHandler(w http.ResponseWriter, r *http.Request) {
-	payload, err := github.ValidatePayload(r, []byte(secretKey))
-	if err != nil {
-		log.Fatal(err)
+const (
+	Production environment = iota
+	Test
+	Staging
+	Development
+)
+
+var secretKey string = "hello_alligrader"
+var githubToken string = "8f23d9e3b9cc22d3be326928ee73c4880996de65"
+var logger *logrus.Logger
+var env environment
+var port = ":80"
+
+func init() {
+	logger = &logrus.Logger{
+		Out:       os.Stdout,
+		Formatter: &logrus.TextFormatter{ForceColors: true},
+		Level:     logrus.InfoLevel,
 	}
 
-	if len(payload) == 0 {
-		log.Fatal("We have an empty payload problem!")
-	}
-	event, err := github.ParseWebHook(github.WebHookType(r), payload)
-	if err != nil {
-		log.Warn(err)
-	}
-
-	switch event := event.(type) {
-	case *github.PushEvent:
-		err = json.Unmarshal(payload, event)
-		if err != nil {
-			log.Info(string(payload))
-			log.Fatal(err)
-		}
-		processPushEvent(w, event)
-	case *github.PullRequestEvent:
-		processPullRequestEvent(w, event)
+	switch env {
+	case Production:
+		logger.Formatter = &logrus.JSONFormatter{}
+		logger.Level = logrus.WarnLevel
+	case Development:
+		logger.Level = logrus.DebugLevel
 	}
 }
 
+type githubHandler struct {
+	log         *logrus.Logger
+	secretKey   string
+	accessToken string
+}
+
+func (g *githubHandler) getClient() *http.Client {
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: g.accessToken},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	return tc
+}
+
+func (g *githubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	var (
+		payload = g.getPayload(r, g.secretKey)
+		event   = g.getEvent(payload, r)
+	)
+
+	g.handleEvent(w, event, payload)
+}
+
+func (g *githubHandler) getPayload(r *http.Request, secretKey string) []byte {
+	payload, err := github.ValidatePayload(r, []byte(g.secretKey))
+	if err != nil {
+		g.log.Fatal(err)
+	}
+	return payload
+}
+
+func (g *githubHandler) getEvent(payload []byte, r *http.Request) interface{} {
+	event, err := github.ParseWebHook(github.WebHookType(r), payload)
+	if err != nil {
+		g.log.Warn(err)
+	}
+	return event
+}
+
+func (g *githubHandler) handleEvent(w http.ResponseWriter, event interface{}, payload []byte) {
+	switch event := event.(type) {
+	case *github.PushEvent:
+		err := json.Unmarshal(payload, event)
+		if err != nil {
+			g.log.Fatal(err)
+		}
+		g.processPushEvent(w, event)
+	case *github.PullRequestEvent:
+		g.processPullRequestEvent(w, event)
+	}
+}
+
+// TODO
 // processPushEvent needs to connect to kubernetes,
 // set the metadata to have the right environment variables
 // then launch those containers
-func processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
+func (g *githubHandler) processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
 	const s = "Received a push event!"
-	log.Info(s)
+	g.log.Info(s)
 	defer w.Write([]byte(s))
 
 	const (
@@ -59,26 +116,26 @@ func processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
 	)
 
 	if e.Repo == nil {
-		log.Info(e.String())
-		log.Fatal("e.Repo is nil.")
+		g.log.Info(e.String())
+		g.log.Fatal("e.Repo is nil.")
 	}
 
 	if e.Repo.Owner == nil {
-		log.Fatal("e.Repo.Owner is nil.")
+		g.log.Fatal("e.Repo.Owner is nil.")
 	}
 
 	if e.Repo.Owner.GetName() == "" {
-		log.Fatal("e.Repo.Owner.GetName() is empty")
+		g.log.Fatal("e.Repo.Owner.GetName() is empty")
 	}
 
 	if e.GetAfter() == "" {
-		log.Warn("e.GetAfter() is empty!")
+		g.log.Warn("e.GetAfter() is empty!")
 	} else {
-		log.Infof("e.GetAfter() == %v", e.GetAfter())
+		g.log.Infof("e.GetAfter() == %v", e.GetAfter())
 	}
 
 	var (
-		httpClient   = getClient()
+		httpClient   = g.getClient()
 		client       = github.NewClient(httpClient)
 		repo         = e.Repo.GetName()
 		owner        = e.Repo.Owner.GetName()
@@ -99,30 +156,19 @@ func processPushEvent(w http.ResponseWriter, e *github.PushEvent) {
 
 	res := pipe.Run()
 	if res == nil {
-		log.Fatal("No response!")
+		g.log.Fatal("No response!")
 	}
 
 	if res.Error != nil {
-		log.Info("Returning an error in the stage result.")
-		log.Fatal(res.Error)
+		g.log.Info("Returning an error in the stage result.")
+		g.log.Fatal(res.Error)
 	}
 }
 
+// TODO
 // processPushEvent needs to connect to kubernetes,
 // set the metadata to have the right environment variables
 // then launch those containers
-func processPullRequestEvent(w http.ResponseWriter, e *github.PullRequestEvent) {
-	const s = "Receieved a pull request event!"
-	log.Info(s)
-	w.Write([]byte(s))
-}
-
-// TODO really need to inject environment variables
-func getClient() *http.Client {
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: "8f23d9e3b9cc22d3be326928ee73c4880996de65"},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-	return tc
+func (g *githubHandler) processPullRequestEvent(w http.ResponseWriter, e *github.PullRequestEvent) {
+	w.Write([]byte("Yay!"))
 }
