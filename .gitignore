@@ -7,7 +7,6 @@ configuration.toml
 *.so
 
 # Folders
-vendor
 _obj
 _test
 
