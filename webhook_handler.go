@@ -173,7 +173,7 @@ func (g *githubHandler) processPushEvent(w http.ResponseWriter, e *github.PushEv
 		ref          = e.GetAfter()
 		outputLoc, _ = ioutil.TempFile("", "findbugs.out")
 		fetchStep    = jobs.NewGithubStep(owner, repo, ref, g.log)
-		checkStep    = jobs.NewCheckstyleStep(jarLoc, outputLoc.Name(), srcDir, checks, "", false, g.log)
+		checkStep    = jobs.NewCheckstyleStep(jarLoc, outputLoc.Name(), srcDir, checks, false, g.log)
 		commentStep  = jobs.NewCommentStep(owner, repo, ref, client, g.log)
 		pipe         = pipeline.New(pipelineName, 1000)
 		stage        = pipeline.NewStage(pipelineName, false, false)
