@@ -8,7 +8,7 @@ phases:
             - echo $IMAGE_TAG
             - echo $IMAGE_REPO_NAME
             - docker build -t alligrader/autograder:latest .
-            - docker tag alligrader/autograder:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+            - docker tag alligrader/autograder:latest $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
     
     post_build:
         commands:
