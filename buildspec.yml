@@ -4,11 +4,11 @@ phases:
     build:
         commands:
             - echo Logging in to Amazon ECR...
-            - $(aws ecr get-login --region $AWS_DEFAULT_REGION)
+            - $(aws ecr get-login --region $DEFAULT_REGION)
             - echo $IMAGE_TAG
             - echo $IMAGE_REPO_NAME
-            - docker build -t alligrader/autograder:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG .
+            - docker build -t alligrader/autograder:latest $ACCOUNT_ID.dkr.ecr.$DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG .
     
     post_build:
         commands:
-            - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+            - docker push $ACCOUNT_ID.dkr.ecr.$DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
